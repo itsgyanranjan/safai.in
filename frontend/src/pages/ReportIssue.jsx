@@ -82,8 +82,9 @@ export const ReportIssue = () => {
   }, [description, address, category, latitude, longitude]);
 
   const handleImageChange = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     if (file) {
+
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
 

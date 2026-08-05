@@ -120,9 +120,10 @@ export const PredictionCard = ({
 };
 
 const intPct = (val) => {
-  if (!val) return '85%';
-  if (typeof val === 'number') return `${intPct(val * 100)}`;
-  if (val.toString().includes('%')) return val;
-  const num = parseFloat(val);
+  if (val === null || val === undefined || val === '') return '85%';
+  if (typeof val === 'string' && val.includes('%')) return val;
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return '85%';
   return num <= 1 ? `${Math.round(num * 100)}%` : `${Math.round(num)}%`;
 };
+
