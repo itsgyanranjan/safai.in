@@ -92,8 +92,10 @@ export const complaintService = {
   async getComplaints(params = {}) {
     try {
       const response = await api.get('complaints/', { params });
-      if (response.data && response.data.length > 0) {
-        saveStoredComplaints(response.data);
+      if (Array.isArray(response.data)) {
+        if (response.data.length > 0) {
+          saveStoredComplaints(response.data);
+        }
         return response.data;
       }
     } catch (error) {
@@ -102,8 +104,12 @@ export const complaintService = {
     let data = getStoredComplaints();
     if (params.mine) {
       const currentUser = JSON.parse(localStorage.getItem('safai_user') || '{}');
-      const userName = currentUser.name || 'Demo Citizen';
-      data = data.filter(c => c.reported_by_name === userName || c.reported_by_name === 'Aarav Sharma' || c.reported_by_name === 'Demo Citizen');
+      const userName = currentUser.name;
+      const userId = currentUser.id;
+      data = data.filter(c => 
+        (userId && (c.reported_by === userId || c.reported_by_id === userId)) ||
+        (userName && c.reported_by_name && c.reported_by_name.toLowerCase() === userName.toLowerCase())
+      );
     }
     return data;
   },
@@ -133,18 +139,25 @@ export const complaintService = {
     const randId = Math.floor(1000 + Math.random() * 9000);
     const currentUser = JSON.parse(localStorage.getItem('safai_user') || '{}');
 
+    const imageFile = formData.get('image');
+    let imageUrl = 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80';
+    if (imageFile && typeof imageFile === 'object' && imageFile instanceof File) {
+      imageUrl = URL.createObjectURL(imageFile);
+    }
+
     const newComplaint = createdFromBackend || {
       id: Date.now(),
       complaint_id: `SAF-2026-${randId}`,
       category: formData.get('category') || 'Garbage Accumulation',
       description: formData.get('description') || 'Cleanliness issue reported by citizen.',
-      image: 'https://images.unsplash.com/photo-1530587191325-3db32d826c18?auto=format&fit=crop&w=600&q=80',
+      image: imageUrl,
       latitude: parseFloat(formData.get('latitude')) || 20.2961,
       longitude: parseFloat(formData.get('longitude')) || 85.8245,
       address: formData.get('address') || 'Saheed Nagar, Bhubaneswar',
       priority: formData.get('priority') || 'MEDIUM',
       status: 'SUBMITTED',
-      reported_by_name: currentUser.name || 'Demo Citizen',
+      reported_by: currentUser.id,
+      reported_by_name: currentUser.name || 'Citizen User',
       assigned_team: 'Unassigned',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -157,6 +170,7 @@ export const complaintService = {
 
     return newComplaint;
   },
+
 
   async updateStatus(id, status, assigned_team) {
     try {
