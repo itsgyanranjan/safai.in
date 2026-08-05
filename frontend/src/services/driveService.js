@@ -75,6 +75,18 @@ const MOCK_DRIVES = [
   }
 ];
 
+const getStoredCertificates = () => {
+  const stored = localStorage.getItem('safai_user_certificates');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return [];
+};
+
 export const driveService = {
   async getDrives() {
     try {
@@ -86,67 +98,70 @@ export const driveService = {
   },
 
   async joinDrive(id) {
-    try {
-      const response = await api.post(`drives/${id}/join/`);
-      return response.data;
-    } catch (error) {
-      const drive = MOCK_DRIVES.find(d => d.id === parseInt(id));
-      if (drive) {
-        drive.is_joined = true;
-        drive.participant_count += 1;
-      }
-      return { message: 'Successfully joined drive! Earned 100 points.' };
+    const drive = MOCK_DRIVES.find(d => d.id === parseInt(id));
+    if (drive) {
+      drive.is_joined = true;
+      drive.participant_count += 1;
     }
+
+    try {
+      await api.post(`drives/${id}/join/`);
+    } catch (error) {
+      console.warn('Using client fallback for joining drive');
+    }
+
+    const currentUser = JSON.parse(localStorage.getItem('safai_user') || '{}');
+    if (drive) {
+      const certId = `CERT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const newCert = {
+        id: Date.now(),
+        certificate_id: certId,
+        user: currentUser.id,
+        participant_name: currentUser.name || 'Citizen Volunteer',
+        cleanup_drive: drive.id,
+        drive_title: drive.title,
+        location: drive.location,
+        date: drive.date,
+        issued_at: new Date().toISOString(),
+        qr_code_hash: `safai-verified-${certId}`
+      };
+      const existingCerts = getStoredCertificates();
+      if (!existingCerts.some(c => c.cleanup_drive === drive.id)) {
+        existingCerts.unshift(newCert);
+        localStorage.setItem('safai_user_certificates', JSON.stringify(existingCerts));
+      }
+    }
+    return { message: 'Successfully joined drive! Earned 100 points and certificate issued.' };
   },
 
   async leaveDrive(id) {
     try {
-      const response = await api.post(`drives/${id}/leave/`);
-      return response.data;
+      await api.post(`drives/${id}/leave/`);
     } catch (error) {
-      const drive = MOCK_DRIVES.find(d => d.id === parseInt(id));
-      if (drive) {
-        drive.is_joined = false;
-        drive.participant_count = Math.max(0, drive.participant_count - 1);
-      }
-      return { message: 'Left drive successfully.' };
+      console.warn('Using client fallback for leaving drive');
     }
+
+    const drive = MOCK_DRIVES.find(d => d.id === parseInt(id));
+    if (drive) {
+      drive.is_joined = false;
+      drive.participant_count = Math.max(0, drive.participant_count - 1);
+      
+      const existingCerts = getStoredCertificates().filter(c => c.cleanup_drive !== drive.id);
+      localStorage.setItem('safai_user_certificates', JSON.stringify(existingCerts));
+    }
+    return { message: 'Left drive successfully.' };
   },
 
   async getCertificates() {
     try {
       const response = await api.get('drives/certificates/');
-      if (response.data) return response.data;
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        return response.data;
+      }
     } catch (error) {
       console.warn('Using client fallback for certificates');
     }
-    const currentUser = JSON.parse(localStorage.getItem('safai_user') || '{}');
-    return [
-      {
-        id: 1,
-        certificate_id: 'CERT-2026-8942',
-        user: currentUser.id || 1,
-        participant_name: currentUser.name || 'Aarav Sharma',
-        cleanup_drive: 2,
-        drive_title: 'Old Town Heritage Clean-up',
-        location: 'Lingaraj Temple Area, Old Town, Bhubaneswar',
-        date: '2026-07-28',
-        issued_at: '2026-07-28T12:00:00Z',
-        qr_code_hash: 'safai-verified-8942'
-      },
-      {
-        id: 2,
-        certificate_id: 'CERT-2026-4109',
-        user: currentUser.id || 1,
-        participant_name: currentUser.name || 'Aarav Sharma',
-        cleanup_drive: 1,
-        drive_title: 'Saheed Nagar Plastic-Free Drive',
-        location: 'Saheed Nagar Market Square, Bhubaneswar',
-        date: '2026-07-15',
-        issued_at: '2026-07-15T14:30:00Z',
-        qr_code_hash: 'safai-verified-4109'
-      }
-    ];
+    return getStoredCertificates();
   },
 
   async verifyParticipant(driveId, userId) {
@@ -157,17 +172,23 @@ export const driveService = {
       console.warn('Using client fallback for participant verification');
     }
     const currentUser = JSON.parse(localStorage.getItem('safai_user') || '{}');
+    const cert = {
+      id: Date.now(),
+      certificate_id: `CERT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      participant_name: currentUser.name || 'Citizen Volunteer',
+      drive_title: 'Municipal Cleanup Initiative',
+      location: 'Bhubaneswar Central Zone',
+      date: new Date().toISOString().split('T')[0],
+      qr_code_hash: `safai-verified-${Date.now()}`
+    };
+    const existingCerts = getStoredCertificates();
+    existingCerts.unshift(cert);
+    localStorage.setItem('safai_user_certificates', JSON.stringify(existingCerts));
+
     return {
       message: 'Citizen participation verified & digital certificate issued!',
-      certificate: {
-        id: Date.now(),
-        certificate_id: `CERT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        participant_name: currentUser.name || 'Citizen Volunteer',
-        drive_title: 'Municipal Cleanup Initiative',
-        location: 'Bhubaneswar Central Zone',
-        date: new Date().toISOString().split('T')[0],
-        qr_code_hash: `safai-verified-${Date.now()}`
-      }
+      certificate: cert
     };
   }
 };
+
