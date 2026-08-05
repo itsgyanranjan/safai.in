@@ -13,11 +13,11 @@ export const authService = {
       // Fallback for offline demo mode
       console.warn('Backend API unavailable, using offline fallback');
       const mockUser = {
-        id: 1,
-        name: userData.name || 'Demo Citizen',
+        id: Date.now(),
+        name: userData.name || (userData.email ? userData.email.split('@')[0] : 'New Citizen'),
         email: userData.email,
         role: userData.role || 'CITIZEN',
-        reward_points: 150
+        reward_points: 50
       };
       localStorage.setItem('safai_token', 'mock_jwt_token_12345');
       localStorage.setItem('safai_user', JSON.stringify(mockUser));
@@ -36,18 +36,21 @@ export const authService = {
     } catch (error) {
       console.warn('Backend API unavailable, using offline fallback');
       const isAdmin = credentials.email.includes('admin');
+      const rawName = credentials.email ? credentials.email.split('@')[0].replace(/[\._-]/g, ' ') : 'Citizen User';
+      const formattedName = rawName.replace(/\b\w/g, (c) => c.toUpperCase());
       const mockUser = {
-        id: isAdmin ? 99 : 1,
-        name: isAdmin ? 'Admin Administrator' : 'Aarav Sharma',
+        id: isAdmin ? 99 : Date.now(),
+        name: isAdmin ? 'Admin Administrator' : formattedName,
         email: credentials.email,
         role: isAdmin ? 'ADMIN' : 'CITIZEN',
-        reward_points: isAdmin ? 500 : 4250
+        reward_points: isAdmin ? 500 : 150
       };
       localStorage.setItem('safai_token', 'mock_jwt_token_12345');
       localStorage.setItem('safai_user', JSON.stringify(mockUser));
       return { user: mockUser, access: 'mock_jwt_token_12345' };
     }
   },
+
 
   async getProfile() {
     try {

@@ -68,7 +68,8 @@ export const CitizenDashboard = () => {
         />
         <StatCard
           icon={Award}
-          value={`${user?.reward_points || 4250} pts`}
+          value={`${user?.reward_points ?? 0} pts`}
+
           label="Reward Points"
           subtext="Earned via civic action"
         />
