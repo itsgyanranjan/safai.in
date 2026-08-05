@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # Database Service: PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: safai_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-safai_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-safai_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - safai_network
+
+  # Backend Service: Django REST Framework with Gunicorn
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: safai_backend
+    restart: always
+    env_file:
+      - .env
+    environment:
+      USE_POSTGRES: "True"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-safai_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      SECRET_KEY: ${SECRET_KEY:-django-insecure-safai-super-secret-key-change-in-production}
+      DEBUG: ${DEBUG:-True}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-*}
+    volumes:
+      - ./backend/media:/app/media
+      - static_data:/app/staticfiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - safai_network
+
+  # Frontend Service: React (Vite) built and served with Nginx
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: safai_frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - safai_network
+
+volumes:
+  postgres_data:
+  static_data:
+
+networks:
+  safai_network:
+    driver: bridge
